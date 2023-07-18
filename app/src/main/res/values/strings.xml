@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">TasksPro</string>
+    <string name="new_task">New Task</string>
+    <string name="enter_task">Enter Task</string>
+    <string name="done">Done</string>
+</resources>
