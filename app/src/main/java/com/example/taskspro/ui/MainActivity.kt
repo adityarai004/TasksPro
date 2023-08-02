@@ -1,51 +1,48 @@
 package com.example.taskspro.ui
 
+import android.content.Intent
+import com.example.taskspro.adapter.RecyclerAdapter
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.taskspro.R
-import com.example.taskspro.adapter.RecyclerAdapter
 import com.example.taskspro.data.Task
-import com.example.taskspro.db.TasksDatabase
-import com.example.taskspro.repository.TasksRepository
+import com.example.taskspro.viewmodel.AuthViewModel
 import com.example.taskspro.viewmodel.TasksViewModel
-import com.example.taskspro.viewmodel.TasksViewModelFactory
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     lateinit var viewModel: TasksViewModel
-    private lateinit var tasksDatabase: TasksDatabase
-    private lateinit var repository: TasksRepository
-    private lateinit var factory: TasksViewModelFactory
     lateinit var recyclerAdapter: RecyclerAdapter
     lateinit var recyclerTasks: RecyclerView
     lateinit var fab:FloatingActionButton
+    lateinit var authViewModel: AuthViewModel
+    lateinit var logoutBtn:Button
     var x = ""
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-
-        tasksDatabase = TasksDatabase.getDatabase(this)
-        repository = TasksRepository(tasksDatabase)
-        factory = TasksViewModelFactory(repository)
         fab = findViewById(R.id.floatingActionButton)
         recyclerTasks = findViewById(R.id.recyclerTasks)
         recyclerTasks.layoutManager = LinearLayoutManager(applicationContext,LinearLayoutManager.VERTICAL,false)
-        viewModel = ViewModelProvider(this, factory)[TasksViewModel::class.java]
-
-
-        recyclerAdapter = RecyclerAdapter(viewModel, this)
+        viewModel = ViewModelProvider(this)[TasksViewModel::class.java]
+        authViewModel = ViewModelProvider(this)[AuthViewModel::class.java]
+        recyclerAdapter = RecyclerAdapter(viewModel, this,authViewModel)
+        logoutBtn = findViewById(R.id.logout_btn)
+        authViewModel.getCurrentUser()?.let { viewModel.getTasks(it) }
         fab.setOnClickListener {
             val dialogBuilder = AlertDialog.Builder(this)
             dialogBuilder.setMessage("Add A New Task")
@@ -56,15 +53,24 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this,dialog.findViewById<EditText>(R.id.newTask)?.text.toString(),Toast.LENGTH_SHORT).show()
                 x = dialog.findViewById<EditText>(R.id.newTask)?.text.toString()
                 lifecycleScope.launch(Dispatchers.IO){
-                    viewModel.insertTask(Task(task = x))
+                    authViewModel.getCurrentUser()
+                        ?.let { it1 -> viewModel.addTask(Task(task = x ), it1) }
                 }
                 dialog.dismiss()
             }
         }
 
+        logoutBtn.setOnClickListener {
+            authViewModel.logOut()
+            recyclerAdapter.updateList(emptyList())
+            Toast.makeText(this, authViewModel.getCurrentUser()?.email ?: "no user",Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this,LoginActivity::class.java))
+            finish()
+        }
         recyclerTasks.adapter = recyclerAdapter
-        viewModel.getAllTasks().observe(this, Observer {
+
+        viewModel.tasksLiveData.observe(this){
             recyclerAdapter.updateList(it)
-        })
+        }
     }
 }

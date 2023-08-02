@@ -1,28 +1,31 @@
 package com.example.taskspro.viewmodel
 
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.taskspro.data.Task
-import com.example.taskspro.repository.TasksRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-class TasksViewModel(var repository: TasksRepository):ViewModel() {
+import com.example.taskspro.repository.FirestoreRepository
+import com.google.firebase.auth.FirebaseUser
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
-     fun getAllTasks():LiveData<List<Task>>  = repository.allTasks()
+@HiltViewModel
+class TasksViewModel @Inject constructor(private val firestoreRepository: FirestoreRepository) : ViewModel() {
+    var tasksLiveData = MutableLiveData<List<Task>>()
 
-    suspend fun deleteTask(task : Task) = viewModelScope.launch (Dispatchers.IO){
-        repository.deleteTask(task)
+    fun getTasks(user: FirebaseUser){
+        tasksLiveData = firestoreRepository.getTasks(user)
+    }
+    fun addTask(task: Task,user: FirebaseUser){
+        firestoreRepository.addTask(task,user)
     }
 
-
-    suspend fun insertTask(task : Task) =viewModelScope.launch(Dispatchers.IO){
-        repository.insertTask(task)
+    fun deleteTask(task: Task,user: FirebaseUser){
+        firestoreRepository.deleteTask(task,user)
     }
 
-
-    suspend fun updateTask(task : Task) = viewModelScope.launch (Dispatchers.IO){
-        repository.updateTask(task)
+    fun updateTask(taskOld: Task,taskNew:Task,user: FirebaseUser){
+        firestoreRepository.updateTask(taskOld,taskNew,user)
     }
 
 }

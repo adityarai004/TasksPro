@@ -1,35 +1,31 @@
 package com.example.taskspro.adapter
 
+import android.app.AlertDialog
 import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.CheckBox
-import android.widget.EditText
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.Dispatchers
-import androidx.lifecycle.viewModelScope
 import com.example.taskspro.R
 import com.example.taskspro.data.Task
+import com.example.taskspro.viewmodel.AuthViewModel
 import com.example.taskspro.viewmodel.TasksViewModel
-import kotlinx.coroutines.launch
+
+class RecyclerAdapter(private val VM: TasksViewModel, private val context: Context,private val authViewModel: AuthViewModel) : RecyclerView.Adapter<RecyclerAdapter.ViewHolder>() {
+
+    var allTasks = mutableListOf<Task>()
 
 
-class RecyclerAdapter(private val VM: TasksViewModel, private val context: Context):RecyclerView.Adapter<RecyclerAdapter.ViewHolder>() {
-
-    private val allTasks = mutableListOf<Task>()
-    lateinit var task: Task
-    inner class ViewHolder(itemView: View): RecyclerView.ViewHolder(itemView){
-        val taskDesc:TextView = itemView.findViewById(R.id.task_desc)
-        val isTaskDone:CheckBox = itemView.findViewById(R.id.checkBox)
+    inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val taskDesc: TextView = itemView.findViewById(R.id.task_desc)
+        val isTaskDone: CheckBox = itemView.findViewById(R.id.checkBox)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         return ViewHolder(
-            LayoutInflater.from(parent.context).inflate(R.layout.tasks_recycler_item,parent,false)
+            LayoutInflater.from(parent.context).inflate(R.layout.tasks_recycler_item, parent, false)
         )
     }
 
@@ -37,43 +33,39 @@ class RecyclerAdapter(private val VM: TasksViewModel, private val context: Conte
         return allTasks.size
     }
 
-
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val tasksViewModel = allTasks[position]
-        task = tasksViewModel
-        holder.isTaskDone.isChecked = tasksViewModel.isDone
+        val task = allTasks[position]
+        holder.isTaskDone.isChecked = task.isDone
+        holder.taskDesc.text = task.task
 
-        holder.taskDesc.text = tasksViewModel.task
-        holder.isTaskDone.setOnClickListener {
-            VM.viewModelScope.launch (Dispatchers.IO){
-                task.isDone = !task.isDone
-                VM.updateTask(task)
-            }
+        holder.isTaskDone.setOnCheckedChangeListener { _, isChecked ->
+            task.isDone = isChecked
+            val taskOld = Task(task = task.task, isDone = !isChecked)
+            val taskNew = Task(task = task.task, isDone = isChecked)
+            authViewModel.getCurrentUser()?.let { VM.updateTask(taskOld,taskNew, it) }
         }
-
+//
         holder.taskDesc.setOnClickListener {
-            updateTask()
+            updateTask(task)
         }
 
         holder.taskDesc.setOnLongClickListener {
-            deleteTask()
+            deleteTask(task)
             true
         }
     }
 
-    private fun deleteTask() {
+    private fun deleteTask(task: Task) {
         val builder = AlertDialog.Builder(context)
         builder.setTitle("Confirmation")
         builder.setMessage("Are you sure you want to proceed?")
 
-        builder.setPositiveButton("Yes") { dialog, which ->
-            VM.viewModelScope.launch (Dispatchers.IO){
-                VM.deleteTask(task)
-                dialog.dismiss()
-            }
+        builder.setPositiveButton("Yes") { dialog, _ ->
+            authViewModel.getCurrentUser()?.let { VM.deleteTask(task, it) }
+            dialog.dismiss()
         }
 
-        builder.setNegativeButton("No") { dialog, which ->
+        builder.setNegativeButton("No") { dialog, _ ->
             dialog.dismiss()
         }
 
@@ -81,20 +73,18 @@ class RecyclerAdapter(private val VM: TasksViewModel, private val context: Conte
         dialog.show()
     }
 
-    private fun updateTask() {
+    private fun updateTask(task: Task) {
         val dialogBuilder = AlertDialog.Builder(context)
         dialogBuilder.setView(R.layout.dialog_box)
         val dialog = dialogBuilder.create()
         dialog.show()
         dialog.findViewById<TextView>(R.id.header)!!.text = "Update Task"
-        val et =dialog.findViewById<EditText>(R.id.newTask)
-        et!!.setText(task.task)
-        dialog.findViewById<Button>(R.id.doneButton)?.setOnClickListener {
-            val x = dialog.findViewById<EditText>(R.id.newTask)?.text.toString()
-            task.task = x
-            VM.viewModelScope.launch(Dispatchers.IO){
-                VM.updateTask(task)
-            }
+        val et = dialog.findViewById<TextView>(R.id.newTask)
+        et!!.text = task.task
+        dialog.findViewById<TextView>(R.id.doneButton)?.setOnClickListener {
+            val taskNew = Task(task.id, et.text.toString(), task.isDone)
+            val taskOld = Task(task = task.task, isDone = task.isDone)
+            authViewModel.getCurrentUser()?.let { it1 -> VM.updateTask(taskOld,taskNew, it1) }
             dialog.dismiss()
         }
     }
